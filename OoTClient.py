@@ -75,12 +75,14 @@ class OoTCommandProcessor(ClientCommandProcessor):
 
 
 class OoTContext(CommonContext):
+    DEFAULT_N64_PORT = 28921
     command_processor = OoTCommandProcessor
     items_handling = 0b001  # full local
 
-    def __init__(self, server_address, password):
+    def __init__(self, server_address, password, n64_port = DEFAULT_N64_PORT):
         super().__init__(server_address, password)
         self.game = 'Ocarina of Time'
+        self.n64_port = n64_port
         self.n64_streams: (StreamReader, StreamWriter) = None
         self.n64_sync_task = None
         self.n64_status = CONNECTION_INITIAL_STATUS
@@ -207,7 +209,7 @@ async def parse_payload(payload: dict, ctx: OoTContext, force: bool):
 
 
 async def n64_sync_task(ctx: OoTContext): 
-    logger.info("Starting n64 connector. Use /n64 for status information.")
+    logger.info(f"Starting n64 connector with port {ctx.n64_port}. Use /n64 for status information.")
     while not ctx.exit_event.is_set():
         error_status = None
         if ctx.n64_streams:
@@ -266,8 +268,8 @@ async def n64_sync_task(ctx: OoTContext):
                 logger.info("Lost connection to N64 and attempting to reconnect. Use /n64 for status updates")
         else:
             try:
-                logger.debug("Attempting to connect to N64")
-                ctx.n64_streams = await asyncio.wait_for(asyncio.open_connection("localhost", 28921), timeout=10)
+                logger.debug(f"Attempting to connect to N64 with port {ctx.n64_port}")
+                ctx.n64_streams = await asyncio.wait_for(asyncio.open_connection("localhost", ctx.n64_port), timeout=10)
                 ctx.n64_status = CONNECTION_TENTATIVE_STATUS
             except TimeoutError:
                 logger.debug("Connection Timed Out, Trying Again")
@@ -312,7 +314,6 @@ async def patch_and_run_game(apz5_file):
     os.remove(decomp_path)
     async_start(run_game(comp_path))
 
-
 if __name__ == '__main__':
 
     Utils.init_logging("OoTClient")
@@ -324,11 +325,17 @@ if __name__ == '__main__':
                             help='Path to an APZ5 file')
         args = parser.parse_args()
 
+        player_id = 0
         if args.apz5_file:
             logger.info("APZ5 file supplied, beginning patching process...")
+            if zipfile.is_zipfile(args.apz5_file):
+                with zipfile.ZipFile(args.apz5_file) as zip:
+                    with zip.open("archipelago.json", 'r') as file:
+                        config_data = json.load(file)
+                        player_id = config_data["player"]
             async_start(patch_and_run_game(args.apz5_file))
 
-        ctx = OoTContext(args.connect, args.password)
+        ctx = OoTContext(args.connect, args.password, OoTContext.DEFAULT_N64_PORT + player_id)
         ctx.server_task = asyncio.create_task(server_loop(ctx), name="Server Loop")
         if gui_enabled:
             ctx.run_gui()

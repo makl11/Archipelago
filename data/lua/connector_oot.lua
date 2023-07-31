@@ -1865,7 +1865,10 @@ function main()
     if not checkBizHawkVersion() then
         return
     end
-    server, error = socket.bind('localhost', 28921)
+    local player_id = mainmemory.read_u8(player_id_addr)
+    local port =  28921 + player_id
+    server, error = socket.bind('localhost', port)
+    print('Listening on port ', port)
 
     while true do
         frame = frame + 1
