@@ -3,8 +3,9 @@ import json
 import os
 import multiprocessing
 import subprocess
+from typing import Tuple, Optional
 import zipfile
-from asyncio import StreamReader, StreamWriter
+from asyncio import StreamReader, StreamWriter, Task
 
 # CommonClient import first to trigger ModuleUpdater
 from CommonClient import CommonContext, server_loop, gui_enabled, \
@@ -83,8 +84,8 @@ class OoTContext(CommonContext):
         super().__init__(server_address, password)
         self.game = 'Ocarina of Time'
         self.n64_port = n64_port
-        self.n64_streams: (StreamReader, StreamWriter) = None
-        self.n64_sync_task = None
+        self.n64_streams: Optional[Tuple[StreamReader, StreamWriter]] = None
+        self.n64_sync_task: Optional[Task] = None
         self.n64_status = CONNECTION_INITIAL_STATUS
         self.awaiting_rom = False
         self.location_table = {}
