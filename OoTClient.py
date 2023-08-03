@@ -62,10 +62,16 @@ class OoTCommandProcessor(ClientCommandProcessor):
     def __init__(self, ctx): 
         super().__init__(ctx)
 
-    def _cmd_n64(self):
-        """Check N64 Connection State"""
+    def _cmd_n64(self, port = ""):
+        """Check N64 Connection State
+        If a port is supplied, connect to N64 using the specified port instead (Default=28921)"""
+
         if isinstance(self.ctx, OoTContext):
-            logger.info(f"N64 Status: {self.ctx.n64_status}")
+            if (port != ""):
+                self.ctx.n64_port = int(port)
+                logger.info(f"Changed n64 connector port to {port}. Use /n64 for status information.")
+            else:
+                logger.info(f"N64 Status: {self.ctx.n64_status}")
 
     def _cmd_deathlink(self):
         """Toggle deathlink from client. Overrides default setting."""
