@@ -1865,10 +1865,12 @@ function main()
     if not checkBizHawkVersion() then
         return
     end
-    local player_id = mainmemory.read_u8(player_id_addr)
-    local port =  28921 + player_id
-    server, error = socket.bind('localhost', port)
-    print('Listening on port ', port)
+
+    local DEFAULT_PORT = 28921
+    local port = DEFAULT_PORT
+    local server, error = nil, nil
+
+    local retries = 5
 
     while true do
         frame = frame + 1
@@ -1880,17 +1882,39 @@ function main()
                 receive()
             end
         elseif (curstate == STATE_UNINITIALIZED) then
-            if  (frame % 60 == 0) then
-                server:settimeout(2)
-                local client, timeout = server:accept()
-                if timeout == nil then
-                    print('Initial Connection Made')
-                    curstate = STATE_INITIAL_CONNECTION_MADE
-                    ootSocket = client
-                    ootSocket:settimeout(0)
+            if (frame % 60 == 0) then
+                if (server == nil or error ~= nil) then
+                    server, error = socket.bind('localhost', port, 1)
+                    local port_in_use = (server == nil) or (error ~= nil and string.find(error, "already in use") ~= nil)
+                    if port_in_use then
+                        print(string.format("Default port %d is in use by another application.", port))
+                        print("Falling back to player specific port (default + player id).")
+                        local player_id = mainmemory.read_u8(player_id_addr)
+                        port = DEFAULT_PORT + player_id
+                    end
+                    print('Listening on port ', port)
+
+                    if port ~= DEFAULT_PORT then
+                        print(string.format("Use '/n64 %d' to connect your client to your emulator.", port))
+                    end
                 else
-                    print('Connection failed, ensure OoTClient is running and rerun connector_oot.lua')
-                    return
+                    server:settimeout(2)
+                    local client, err = server:accept()
+                    if err == nil then
+                        print('Initial Connection Made')
+                        curstate = STATE_INITIAL_CONNECTION_MADE
+                        ootSocket = client
+                        ootSocket:settimeout(0)
+                    elseif err == "timeout" then
+                        if (retries <= 0) then
+                            print('Connection failed, ensure OoTClient is running and rerun connector_oot.lua')
+                            return
+                        end
+                        retries = retries - 1
+                        print(string.format("Connection failed, retrying... (%d tries left)\n", retries))
+                    else
+                        print("Unexpected error:", err)
+                    end
                 end
             end
         end
